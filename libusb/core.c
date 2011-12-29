@@ -519,6 +519,12 @@ struct libusb_device *usbi_alloc_device(struct libusb_context *ctx,
 		free(dev);
 		return NULL;
 	}
+	
+	r = usbi_mutex_init(&dev->devaddr_lock, NULL);
+	if (r){
+		free(dev);
+		return NULL;
+	}
 
 	dev->ctx = ctx;
 	dev->refcnt = 1;
@@ -676,7 +682,12 @@ uint8_t API_EXPORTED libusb_get_bus_number(libusb_device *dev)
  */
 uint8_t API_EXPORTED libusb_get_device_address(libusb_device *dev)
 {
-	return dev->device_address;
+	uint8_t devaddr;
+
+	usbi_mutex_lock(&dev->devaddr_lock);
+	devaddr = dev->device_address;
+	usbi_mutex_unlock(&dev->devaddr_lock);
+	return devaddr;
 }
 
 /** \ingroup dev
@@ -852,6 +863,7 @@ void API_EXPORTED libusb_unref_device(libusb_device *dev)
 		usbi_mutex_unlock(&dev->ctx->usb_devs_lock);
 
 		usbi_mutex_destroy(&dev->lock);
+		usbi_mutex_destroy(&dev->devaddr_lock);
 		free(dev);
 	}
 }

@@ -278,6 +278,7 @@ struct libusb_device {
 
 	uint8_t bus_number;
 	uint8_t device_address;
+	usbi_mutex_t devaddr_lock;
 	uint8_t num_configurations;
 	enum libusb_speed speed;
 
