@@ -1823,6 +1823,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 	struct pollfd *fds;
 	int i = -1;
 	int timeout_ms;
+	int control_pipe_index = 0;
 
 	usbi_mutex_lock(&ctx->pollfds_lock);
 	list_for_each_entry(ipollfd, &ctx->pollfds, list, struct usbi_pollfd)
@@ -1840,6 +1841,9 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 		int fd = pollfd->fd;
 		i++;
 		fds[i].fd = fd;
+		if (fd == ctx->ctrl_pipe[0]){
+			control_pipe_index = i;
+		}
 		fds[i].events = pollfd->events;
 		fds[i].revents = 0;
 	}
@@ -1866,8 +1870,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 		return LIBUSB_ERROR_IO;
 	}
 
-	/* fd[0] is always the ctrl pipe */
-	if (fds[0].revents) {
+	if (fds[control_pipe_index].revents) {
 		/* another thread wanted to interrupt event handling, and it succeeded!
 		 * handle any other events that cropped up at the same time, and
 		 * simply return */
@@ -1878,7 +1881,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 			goto handled;
 		} else {
 			/* prevent OS backend from trying to handle events on ctrl pipe */
-			fds[0].revents = 0;
+			fds[control_pipe_index].revents = 0;
 			r--;
 		}
 	}
