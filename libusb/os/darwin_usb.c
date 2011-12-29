@@ -157,7 +157,8 @@ static int ep_to_pipeRef(struct libusb_device_handle *dev_handle, uint8_t ep, ui
   return -1;
 }
 
-static int usb_setup_device_iterator (io_iterator_t *deviceIterator, long location) {
+static int usb_setup_device_iterator ( struct darwin_context_priv* ctx_priv, 
+	io_iterator_t *deviceIterator, long location) {
   CFMutableDictionaryRef matchingDict = IOServiceMatching(kIOUSBDeviceClassName);
 
   if (!matchingDict)
@@ -182,7 +183,7 @@ static int usb_setup_device_iterator (io_iterator_t *deviceIterator, long locati
     /* else we can still proceed as long as the caller accounts for the possibility of other devices in the iterator */
   }
 
-  return IOServiceGetMatchingServices(libusb_darwin_mp, matchingDict, deviceIterator);
+  return IOServiceGetMatchingServices(ctx_priv->libusb_darwin_mp, matchingDict, deviceIterator);
 }
 
 static usb_device_t **usb_get_next_device (io_iterator_t deviceIterator, UInt32 *locationp) {
@@ -229,7 +230,7 @@ static kern_return_t darwin_get_device (struct darwin_context_priv* ctx_priv,
   UInt32        location;
   io_iterator_t deviceIterator;
 
-  kresult = usb_setup_device_iterator (&deviceIterator, dev_location);
+  kresult = usb_setup_device_iterator (ctx_priv, &deviceIterator, dev_location);
   if (kresult)
     return kresult;
 
@@ -470,8 +471,8 @@ static void darwin_exit (libusb_context* ctx) {
   if (!(--ctx_priv->initCount)) {
 
     /* stop the async runloop */
-    CFRunLoopStop (libusb_darwin_acfl);
-    pthread_join (libusb_darwin_at, NULL);
+    CFRunLoopStop (ctx_priv->libusb_darwin_acfl);
+    pthread_join (ctx_priv->libusb_darwin_at, NULL);
 
     if (ctx_priv->libusb_darwin_mp)
       mach_port_deallocate(mach_task_self(), ctx_priv->libusb_darwin_mp);
@@ -759,70 +760,6 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
   return 0;
 }
 
-static int process_new_device (struct libusb_context *ctx, usb_device_t **device, UInt32 locationID, struct discovered_devs **_discdevs) {
-  struct darwin_device_priv *priv;
-  struct libusb_device *dev;
-  struct discovered_devs *discdevs;
-  UInt16                address;
-  UInt8                 devSpeed;
-  int ret = 0, need_unref = 0;
-
-  do {
-    dev = usbi_get_device_by_session_id(ctx, locationID);
-    if (!dev) {
-      usbi_info (ctx, "allocating new device for location 0x%08x", locationID);
-      dev = usbi_alloc_device(ctx, locationID);
-      need_unref = 1;
-    } else
-      usbi_info (ctx, "using existing device for location 0x%08x", locationID);
-
-    if (!dev) {
-      ret = LIBUSB_ERROR_NO_MEM;
-      goto end;
-    }
-
-    priv = (struct darwin_device_priv *)dev->os_priv;
-
-    (*device)->GetDeviceAddress (device, (USBDeviceAddress *)&address);
-
-    ret = darwin_cache_device_descriptor (ctx, dev, device);
-    if (ret < 0)
-      goto end;
-
-    /* check current active configuration (and cache the first configuration value-- which may be used by claim_interface) */
-/* TODO: where does this come from??? 
-    ret = darwin_check_configuration (ctx, dev, device);
-    if (ret < 0)
-      break;
-*/
-    dev->bus_number     = locationID >> 24;
-    dev->device_address = address;
-
-    (*device)->GetDeviceSpeed (device, &devSpeed);
-
-    switch (devSpeed) {
-    case kUSBDeviceSpeedLow: dev->speed = LIBUSB_SPEED_LOW; break;
-    case kUSBDeviceSpeedFull: dev->speed = LIBUSB_SPEED_FULL; break;
-    case kUSBDeviceSpeedHigh: dev->speed = LIBUSB_SPEED_HIGH; break;
-    default:
-      usbi_warn (ctx, "Got unknown device speed %d", devSpeed);
-    }
-
-    /* save our location, we'll need this later */
-    priv->location = locationID;
-    snprintf(priv->sys_path, 20, "%03i-%04x-%04x-%02x-%02x", address, priv->dev_descriptor.idVendor, priv->dev_descriptor.idProduct,
-	     priv->dev_descriptor.bDeviceClass, priv->dev_descriptor.bDeviceSubClass);
-
-    ret = usbi_sanitize_device (*dev);
-
-end:
-  if (ret < 0) {
-    libusb_unref_device(*dev);
-    return ret;
-  }
-  return 0;
-}
-
 static int process_new_device (
   struct libusb_context *ctx, usb_device_t **device, UInt32 locationID,
   struct discovered_devs **_discdevs)
@@ -872,7 +809,7 @@ static int darwin_get_device_list(struct libusb_context *ctx, struct discovered_
   if (!ctx_priv->libusb_darwin_mp)
     return LIBUSB_ERROR_INVALID_PARAM;
 
-  kresult = usb_setup_device_iterator (&deviceIterator, 0);
+  kresult = usb_setup_device_iterator (ctx_priv, &deviceIterator, 0);
   if (kresult != kIOReturnSuccess)
     return darwin_to_libusb (kresult);
 
