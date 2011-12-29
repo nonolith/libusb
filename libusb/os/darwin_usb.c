@@ -396,7 +396,7 @@ static void *event_thread_main (void *arg0) {
       usbi_err (ctx, "could not add hotplug event source: %s",
                 darwin_error_str (kresult));
       /* TODO: pthread_exit() -> usbi_exit()? */
-      pthread_exit ((void *) &kresult);
+      pthread_exit ((void *) kresult);
   }
   /* create notifications for removed devices */
   kresult = IOServiceAddMatchingNotification (libusb_notification_port, kIOTerminatedNotification,
@@ -411,6 +411,7 @@ static void *event_thread_main (void *arg0) {
   }
 
   /* arm notifiers */
+  darwin_clear_iterator (libusb_add_device_iterator);
   darwin_clear_iterator (libusb_rem_device_iterator);
 
   /* let the main thread know about the async runloop */
@@ -628,6 +629,7 @@ static int darwin_check_configuration (struct libusb_context *ctx, struct libusb
   return 0;
 }
 
+
 static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct libusb_device *dev, usb_device_t **device) {
   struct darwin_device_priv *priv;
   int retries = 5, delay = 30000;
@@ -760,7 +762,63 @@ static int darwin_cache_device_descriptor (struct libusb_context *ctx, struct li
   return 0;
 }
 
-static int process_new_device (
+static int add_new_device(
+    struct libusb_context *ctx, usb_device_t **device, UInt32 locationID,
+    struct libusb_device **dev) {
+  struct darwin_device_priv *priv;
+  UInt16                address;
+  UInt8                 devSpeed;
+  int ret = 0;
+
+  *dev = usbi_alloc_device(ctx, locationID);
+
+  if (!*dev) {
+    return LIBUSB_ERROR_NO_MEM;
+  }
+
+  priv = (struct darwin_device_priv *)(*dev)->os_priv;
+
+  (*device)->GetDeviceAddress (device, (USBDeviceAddress *)&address);
+
+  ret = darwin_cache_device_descriptor (ctx, *dev, device);
+  if (ret < 0)
+    goto end;
+
+    /* check current active configuration (and cache the first configuration value-- which may be used by claim_interface) */
+    ret = darwin_check_configuration (ctx, *dev, device);
+    if (ret < 0)
+      goto end;
+
+    (*dev)->bus_number     = locationID >> 24;
+    (*dev)->device_address = address;
+
+    (*device)->GetDeviceSpeed (device, &devSpeed);
+
+    switch (devSpeed) {
+    case kUSBDeviceSpeedLow:  (*dev)->speed = LIBUSB_SPEED_LOW; break;
+    case kUSBDeviceSpeedFull: (*dev)->speed = LIBUSB_SPEED_FULL; break;
+    case kUSBDeviceSpeedHigh: (*dev)->speed = LIBUSB_SPEED_HIGH; break;
+    default:
+      usbi_warn (ctx, "Got unknown device speed %d", devSpeed);
+    }
+
+    /* save our location, we'll need this later */
+    priv->location = locationID;
+    priv->status_changed = 0;
+    snprintf(priv->sys_path, 20, "%03i-%04x-%04x-%02x-%02x", address, priv->dev_descriptor.idVendor, priv->dev_descriptor.idProduct,
+	     priv->dev_descriptor.bDeviceClass, priv->dev_descriptor.bDeviceSubClass);
+
+    ret = usbi_sanitize_device (*dev);
+    
+end:
+  if (ret < 0) {
+    libusb_unref_device(*dev);
+    return ret;
+  }
+  return 0;
+}
+
+static int process_new_device(
   struct libusb_context *ctx, usb_device_t **device, UInt32 locationID,
   struct discovered_devs **_discdevs)
 {
@@ -783,6 +841,7 @@ static int process_new_device (
     usbi_info (ctx, "using existing device for location 0x%08x", locationID);
   }
   priv = (struct darwin_device_priv *) dev->os_priv;
+
     /* append the device to the list of discovered devices */
     discdevs = discovered_devs_append(*_discdevs, dev);
     if (!discdevs) {
