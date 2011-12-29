@@ -276,6 +276,9 @@ struct libusb_device {
 
 	struct libusb_context *ctx;
 
+	int status_online;
+	usbi_mutex_t status_online_lock;
+	
 	uint8_t bus_number;
 	uint8_t device_address;
 	usbi_mutex_t devaddr_lock;

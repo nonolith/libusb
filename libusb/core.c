@@ -525,6 +525,13 @@ struct libusb_device *usbi_alloc_device(struct libusb_context *ctx,
 		free(dev);
 		return NULL;
 	}
+	
+	r = usbi_mutex_init(&dev->status_online_lock, NULL);
+	if (r){
+		free(dev);
+		return NULL;
+	}
+	dev->status_online = 1;
 
 	dev->ctx = ctx;
 	dev->refcnt = 1;
@@ -864,6 +871,7 @@ void API_EXPORTED libusb_unref_device(libusb_device *dev)
 
 		usbi_mutex_destroy(&dev->lock);
 		usbi_mutex_destroy(&dev->devaddr_lock);
+		usbi_mutex_destroy(&dev->status_online_lock);
 		free(dev);
 	}
 }
@@ -1691,6 +1699,14 @@ int API_EXPORTED libusb_has_capability(uint32_t capability)
 		return 1;
 	}
 	return 0;
+}
+
+/** \ingroup dev
+ * Get the status of the device (true if connected, false if disconnected)
+ */
+int API_EXPORTED libusb_get_status(libusb_device *dev)
+{
+	return dev->status_online;
 }
 
 void usbi_log_v(struct libusb_context *ctx, enum usbi_log_level level,
