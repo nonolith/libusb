@@ -258,6 +258,8 @@ struct libusb_context {
 	 * this timerfd is maintained to trigger on the next pending timeout */
 	int timerfd;
 #endif
+
+	unsigned char os_priv[0];
 };
 
 #ifdef USBI_TIMERFD_AVAILABLE
@@ -856,6 +858,11 @@ struct usbi_os_backend {
 	/* clock ID of the clock that should be used for timerfd */
 	clockid_t (*get_timerfd_clockid)(void);
 #endif
+	
+	/* Number of bytes to reserve for per-handle private backend data.
+	 * This private data area is accessible through the "os_priv" field of
+	 * struct libusb_context. */
+	size_t context_priv_size;
 
 	/* Number of bytes to reserve for per-device private backend data.
 	 * This private data area is accessible through the "os_priv" field of

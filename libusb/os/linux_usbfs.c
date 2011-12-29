@@ -99,6 +99,9 @@ static int sysfs_can_relate_devices = 0;
 /* do we have a descriptors file? */
 static int sysfs_has_descriptors = 0;
 
+struct linux_context_priv {
+};
+
 struct linux_device_priv {
 	char *sysfs_dir;
 	unsigned char *dev_descriptor;
@@ -144,6 +147,11 @@ static void _get_usbfs_path(struct libusb_device *dev, char *path)
 {
 	snprintf(path, PATH_MAX, "%s/%03d/%03d", usbfs_path, dev->bus_number,
 		dev->device_address);
+}
+
+inline static struct linux_context_priv *__ctx_priv(struct libusb_context *ctx)
+{
+	return (struct linux_context_priv*) ctx->os_priv;
 }
 
 static struct linux_device_priv *_device_priv(struct libusb_device *dev)
@@ -2305,6 +2313,7 @@ const struct usbi_os_backend linux_usbfs_backend = {
 	.get_timerfd_clockid = op_get_timerfd_clockid,
 #endif
 
+	.context_priv_size = sizeof(struct linux_context_priv),
 	.device_priv_size = sizeof(struct linux_device_priv),
 	.device_handle_priv_size = sizeof(struct linux_device_handle_priv),
 	.transfer_priv_size = sizeof(struct linux_transfer_priv),

@@ -1562,6 +1562,7 @@ int API_EXPORTED libusb_init(libusb_context **context)
 	char *dbg = getenv("LIBUSB_DEBUG");
 	struct libusb_context *ctx;
 	int r;
+	size_t priv_size = usbi_backend->context_priv_size;
 
 	usbi_mutex_static_lock(&default_context_lock);
 	if (!context && usbi_default_context) {
@@ -1572,12 +1573,12 @@ int API_EXPORTED libusb_init(libusb_context **context)
 		return 0;
 	}
 
-	ctx = malloc(sizeof(*ctx));
+	ctx = malloc(sizeof(*ctx) + priv_size);
 	if (!ctx) {
 		r = LIBUSB_ERROR_NO_MEM;
 		goto err_unlock;
 	}
-	memset(ctx, 0, sizeof(*ctx));
+	memset(ctx, 0, sizeof(*ctx) + priv_size);
 
 	if (dbg) {
 		ctx->debug = atoi(dbg);
