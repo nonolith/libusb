@@ -590,6 +590,24 @@ struct libusb_device *usbi_get_device_by_session_id(struct libusb_context *ctx,
 	return ret;
 }
 
+/* Like get_device_by_session_id, but references the device */
+struct libusb_device *usbi_get_device_by_session_id_ref(struct libusb_context *ctx,
+	unsigned long session_id)
+{
+	struct libusb_device *dev;
+	struct libusb_device *ret = NULL;
+	usbi_mutex_lock(&ctx->usb_devs_lock);
+	list_for_each_entry(dev, &ctx->usb_devs, list, struct libusb_device)
+		if (dev->session_data == session_id) {
+			ret = dev;
+			libusb_ref_device(dev);
+			break;
+		}
+	usbi_mutex_unlock(&ctx->usb_devs_lock);
+
+	return ret;
+}
+
 /** @ingroup dev
  * Returns a list of USB devices currently attached to the system. This is
  * your entry point into finding a USB device to operate.
@@ -706,6 +724,11 @@ uint8_t API_EXPORTED libusb_get_device_address(libusb_device *dev)
 int API_EXPORTED libusb_get_device_speed(libusb_device *dev)
 {
 	return dev->speed;
+}
+
+unsigned long API_EXPORTED libusb_get_session_id(libusb_device *dev)
+{
+	return dev->session_data;
 }
 
 static const struct libusb_endpoint_descriptor *find_endpoint(

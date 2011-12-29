@@ -182,6 +182,26 @@ static inline void usbi_dbg(const char *format, ...)
 
 #endif /* !defined(_MSC_VER) || _MSC_VER > 1200 */
 
+/*
+ * djb2
+ *
+ * This algorithm (k=33) was first reported by Dan Bernstein many years
+ * ago in comp.lang.c.
+ */
+/* TODO: maintain a hash table and detect collisions */
+static inline unsigned long usbi_hash(const char* sz)
+{
+	unsigned long r = 5381;
+	int c;
+	while ((c = *sz++)) {
+		r = ((r << 5) + r) + c; /* r * 33 + c */
+	}
+	if (r == 0) {
+		usbi_warn(NULL, "'%s''s hash is 0!", sz);
+	}
+	return r;
+}
+
 #define USBI_GET_CONTEXT(ctx) if (!(ctx)) (ctx) = usbi_default_context
 #define DEVICE_CTX(dev) ((dev)->ctx)
 #define HANDLE_CTX(handle) (DEVICE_CTX((handle)->dev))
@@ -380,6 +400,8 @@ void usbi_io_exit(struct libusb_context *ctx);
 struct libusb_device *usbi_alloc_device(struct libusb_context *ctx,
 	unsigned long session_id);
 struct libusb_device *usbi_get_device_by_session_id(struct libusb_context *ctx,
+	unsigned long session_id);
+struct libusb_device *usbi_get_device_by_session_id_ref(struct libusb_context *ctx,
 	unsigned long session_id);
 int usbi_sanitize_device(struct libusb_device *dev);
 void usbi_handle_disconnect(struct libusb_device_handle *handle);

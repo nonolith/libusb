@@ -939,10 +939,7 @@ static int enumerate_device(struct libusb_context *ctx,
 	struct libusb_device *dev;
 	int r = 0;
 
-	/* FIXME: session ID is not guaranteed unique as addresses can wrap and
-	 * will be reused. instead we should add a simple sysfs attribute with
-	 * a session ID. */
-	session_id = busnum << 8 | devaddr;
+	session_id = usbi_hash(sysfs_dir);
 	usbi_dbg("busnum %d devaddr %d session_id %ld", busnum, devaddr,
 		session_id);
 
