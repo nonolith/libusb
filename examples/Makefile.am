@@ -1,8 +1,11 @@
 INCLUDES = -I$(top_srcdir)/libusb
-noinst_PROGRAMS = lsusb
+noinst_PROGRAMS = lsusb hotplug
 
 lsusb_SOURCES = lsusb.c
 lsusb_LDADD = ../libusb/libusb-1.0.la -lusb-1.0
+
+hotplug_SOURCES = hotplug.c
+hotplug_LDADD = ../libusb/libusb-1.0.la -lusb-1.0
 
 if HAVE_SIGACTION
 dpfp_SOURCES = dpfp.c
