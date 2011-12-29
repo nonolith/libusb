@@ -278,7 +278,11 @@ struct libusb_context {
 	 * this timerfd is maintained to trigger on the next pending timeout */
 	int timerfd;
 #endif
-
+	
+	libusb_hotplug_cb_fn hotplug_connected_listener;
+	libusb_hotplug_cb_fn hotplug_disconnected_listener;
+	void* hotplug_listener_user_data;
+	usbi_mutex_t hotplug_listener_lock;
 	unsigned char os_priv[0];
 };
 
@@ -399,6 +403,7 @@ void usbi_io_exit(struct libusb_context *ctx);
 
 struct libusb_device *usbi_alloc_device(struct libusb_context *ctx,
 	unsigned long session_id);
+int usbi_notify_device_state(struct libusb_device* dev, int new_state);
 struct libusb_device *usbi_get_device_by_session_id(struct libusb_context *ctx,
 	unsigned long session_id);
 struct libusb_device *usbi_get_device_by_session_id_ref(struct libusb_context *ctx,

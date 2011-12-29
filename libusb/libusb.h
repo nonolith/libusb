@@ -901,11 +901,20 @@ enum libusb_capability {
 	LIBUSB_CAP_HAS_CAPABILITY = 0,
 };
 
+
+typedef void (*libusb_hotplug_cb_fn)(
+	struct libusb_device *device, void *user_data);
+
 int LIBUSB_CALL libusb_init(libusb_context **ctx);
 void LIBUSB_CALL libusb_exit(libusb_context *ctx);
 void LIBUSB_CALL libusb_set_debug(libusb_context *ctx, int level);
 int LIBUSB_CALL libusb_has_capability(uint32_t capability);
 const char * LIBUSB_CALL libusb_error_name(int errcode);
+
+void LIBUSB_CALL libusb_register_hotplug_listeners(libusb_context *ctx,
+	libusb_hotplug_cb_fn connected_cb,
+	libusb_hotplug_cb_fn disconnected_cb, void *user_data);
+void LIBUSB_CALL libusb_unregister_hotplug_listeners(libusb_context *ctx);
 
 ssize_t LIBUSB_CALL libusb_get_device_list(libusb_context *ctx,
 	libusb_device ***list);
@@ -913,6 +922,7 @@ void LIBUSB_CALL libusb_free_device_list(libusb_device **list,
 	int unref_devices);
 libusb_device * LIBUSB_CALL libusb_ref_device(libusb_device *dev);
 void LIBUSB_CALL libusb_unref_device(libusb_device *dev);
+int LIBUSB_CALL libusb_get_status(libusb_device *dev);
 
 int LIBUSB_CALL libusb_get_configuration(libusb_device_handle *dev,
 	int *config);

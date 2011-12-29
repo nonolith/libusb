@@ -1630,17 +1630,10 @@ int API_EXPORTED libusb_init(libusb_context **context)
 	}
 
 	usbi_dbg("");
-
-	if (usbi_backend->init) {
-		r = usbi_backend->init(ctx);
-		if (r)
-			goto err_free_ctx;
-	}
-
-	usbi_mutex_init(&ctx->usb_devs_lock, NULL);
-	usbi_mutex_init(&ctx->open_devs_lock, NULL);
-	list_init(&ctx->usb_devs);
-	list_init(&ctx->open_devs);
+	
+	ctx->hotplug_connected_listener = 0;
+	ctx->hotplug_disconnected_listener = 0;
+	ctx->hotplug_listener_user_data = 0;
 
 	r = usbi_io_init(ctx);
 	if (r < 0) {
@@ -1648,6 +1641,20 @@ int API_EXPORTED libusb_init(libusb_context **context)
 			usbi_backend->exit(ctx);
 		goto err_destroy_mutex;
 	}
+
+	if (usbi_backend->init) {
+		r = usbi_backend->init(ctx);
+		if (r){
+			usbi_io_exit(ctx);
+			goto err_free_ctx;
+		}
+	}
+
+	usbi_mutex_init(&ctx->usb_devs_lock, NULL);
+	usbi_mutex_init(&ctx->open_devs_lock, NULL);
+	usbi_mutex_init(&ctx->hotplug_listener_lock, NULL);
+	list_init(&ctx->usb_devs);
+	list_init(&ctx->open_devs);
 
 	if (context) {
 		*context = ctx;
@@ -1663,6 +1670,7 @@ int API_EXPORTED libusb_init(libusb_context **context)
 err_destroy_mutex:
 	usbi_mutex_destroy(&ctx->open_devs_lock);
 	usbi_mutex_destroy(&ctx->usb_devs_lock);
+	usbi_mutex_destroy(&ctx->hotplug_listener_lock);
 err_free_ctx:
 	free(ctx);
 err_unlock:
@@ -1705,8 +1713,41 @@ void API_EXPORTED libusb_exit(struct libusb_context *ctx)
 
 	usbi_mutex_destroy(&ctx->open_devs_lock);
 	usbi_mutex_destroy(&ctx->usb_devs_lock);
+	usbi_mutex_destroy(&ctx->hotplug_listener_lock);
 	free(ctx);
 }
+
+
+/** \ingroup misc
+ * Register callbacks to be called when a USB device is connected or
+ * disconnected. TODO: more specific documentation.
+ */
+void API_EXPORTED libusb_register_hotplug_listeners(
+	libusb_context *ctx, libusb_hotplug_cb_fn connected_cb,
+	libusb_hotplug_cb_fn disconnected_cb, void *user_data)
+{
+	USBI_GET_CONTEXT(ctx);
+	usbi_mutex_lock(&ctx->hotplug_listener_lock);
+	ctx->hotplug_connected_listener = connected_cb;
+	ctx->hotplug_disconnected_listener = disconnected_cb;
+	ctx->hotplug_listener_user_data = user_data;
+	usbi_mutex_unlock(&ctx->hotplug_listener_lock);
+}
+
+/** \ingroup misc
+ * Disable the hotplug listeners registered with
+ * libusb_register_hotplug_listeners
+ */
+void API_EXPORTED libusb_unregister_hotplug_listeners(libusb_context *ctx)
+{
+	USBI_GET_CONTEXT(ctx);
+	usbi_mutex_lock(&ctx->hotplug_listener_lock);
+	ctx->hotplug_connected_listener = 0;
+	ctx->hotplug_disconnected_listener = 0;
+	ctx->hotplug_listener_user_data = 0;
+	usbi_mutex_unlock(&ctx->hotplug_listener_lock);
+}
+
 
 /** \ingroup misc
  * Check at runtime if the loaded library has a given capability.
@@ -1730,6 +1771,32 @@ int API_EXPORTED libusb_has_capability(uint32_t capability)
 int API_EXPORTED libusb_get_status(libusb_device *dev)
 {
 	return dev->status_online;
+}
+
+/* TODO: doc */
+int usbi_notify_device_state(struct libusb_device *dev, int new_state)
+{
+	int status_online;
+	libusb_hotplug_cb_fn connected_cb;
+	libusb_hotplug_cb_fn disconnected_cb;
+	void* user_data;
+
+	usbi_mutex_lock(&dev->ctx->hotplug_listener_lock);
+	connected_cb = dev->ctx->hotplug_connected_listener;
+	disconnected_cb = dev->ctx->hotplug_disconnected_listener;
+	user_data = dev->ctx->hotplug_listener_user_data;
+	usbi_mutex_unlock(&dev->ctx->hotplug_listener_lock);
+	status_online = new_state == 0 ? 0 : 1;
+	if (connected_cb && status_online) {
+		usbi_dbg("calling registered callback for device attach");
+		connected_cb(dev, user_data);
+		return 1;
+	} else if (disconnected_cb) {
+		usbi_dbg("calling registered callback for device detach");
+		disconnected_cb(dev, user_data);
+		return 0;
+	}
+	return -1;
 }
 
 void usbi_log_v(struct libusb_context *ctx, enum usbi_log_level level,

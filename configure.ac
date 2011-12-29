@@ -57,6 +57,7 @@ case $host in
 	PC_LIBS_PRIVATE="${PC_LIBS_PRIVATE} -pthread"
 	AC_CHECK_HEADERS([poll.h])
 	AC_DEFINE([POLL_NFDS_TYPE],[nfds_t],[type of second poll() argument])
+	LIBS="${LIBS} -ludev"
 	;;
 *-darwin*)
 	AC_DEFINE(OS_DARWIN, 1, [Darwin backend])
