@@ -325,6 +325,9 @@ static void darwin_devices_detached (void *ptr, io_iterator_t rem_devices) {
 
     if (!locationValid)
       continue;
+      
+    /* Locations are 32-bit everywhere else */
+    location = location & 0xffffffff;
 
     usbi_mutex_lock(&ctx->open_devs_lock);
     list_for_each_entry(handle, &ctx->open_devs, list, struct libusb_device_handle) {
