@@ -900,7 +900,7 @@ struct libusb_transfer {
 	;
 };
 
-typedef void (*libusb_hotplug_cb_fn)(
+typedef void LIBUSB_CALL (*libusb_hotplug_cb_fn)(
 	struct libusb_device *device, void *user_data);
 int LIBUSB_CALL libusb_init(libusb_context **ctx);
 void LIBUSB_CALL libusb_exit(libusb_context *ctx);
