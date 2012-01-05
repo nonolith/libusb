@@ -38,3 +38,6 @@ doc/html
 Debug
 Release
 *.user
+config.h.in
+ltmain.sh.orig
+m4/
