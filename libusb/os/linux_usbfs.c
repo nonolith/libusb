@@ -2312,7 +2312,7 @@ static void handle_hotplug_event(struct libusb_context *ctx)
 	const char* udev_action;
 	const char* dev_node;
 	const char* sys_name;
-	uint8_t busnum, devaddr;
+	uint8_t busnum=0, devaddr=0;
 	char* delim = "/";
 	char* substr;
 	char* dev_node_dup;

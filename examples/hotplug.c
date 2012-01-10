@@ -35,7 +35,9 @@ static void device_added(libusb_device *dev, void *user_data)
 		libusb_get_bus_number(dev), libusb_get_device_address(dev));
 	
 	// Note: this leaks the device, but we only get removal events for referenced devices
-	libusb_ref_device(dev);
+	struct libusb_device_handle *handle;
+	r = libusb_open(dev, &handle);
+	printf("Opened: %i\n", r);
 }
 
 static void device_removed(libusb_device *dev, void *user_data)
