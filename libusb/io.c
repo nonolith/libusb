@@ -1824,6 +1824,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 	int i = -1;
 	int timeout_ms;
 	int control_pipe_index = 0;
+	int timerfd_pipe_index = 0;
 
 	usbi_mutex_lock(&ctx->pollfds_lock);
 	list_for_each_entry(ipollfd, &ctx->pollfds, list, struct usbi_pollfd)
@@ -1843,6 +1844,9 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 		fds[i].fd = fd;
 		if (fd == ctx->ctrl_pipe[0]){
 			control_pipe_index = i;
+		}
+		if (fd == ctx->timerfd){
+			timerfd_pipe_index = i;
 		}
 		fds[i].events = pollfd->events;
 		fds[i].revents = 0;
@@ -1887,8 +1891,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 	}
 
 #ifdef USBI_TIMERFD_AVAILABLE
-	/* on timerfd configurations, fds[1] is the timerfd */
-	if (usbi_using_timerfd(ctx) && fds[1].revents) {
+	if (usbi_using_timerfd(ctx) && fds[timerfd_pipe_index].revents) {
 		/* timerfd indicates that a timeout has expired */
 		int ret;
 		usbi_dbg("timerfd triggered");
@@ -1905,7 +1908,7 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 		} else {
 			/* more events pending...
 			 * prevent OS backend from trying to handle events on timerfd */
-			fds[1].revents = 0;
+			fds[timerfd_pipe_index].revents = 0;
 			r--;
 		}
 	}

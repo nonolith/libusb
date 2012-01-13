@@ -2417,9 +2417,11 @@ static int op_handle_events(struct libusb_context *ctx,
 		list_for_each_entry(handle, &ctx->open_devs, list, struct libusb_device_handle) {
 			hpriv =  __device_handle_priv(handle);
 			if (hpriv->fd == pollfd->fd)
-				break;
+				goto found_dev_for_fd;
 		}
-
+		usbi_err(ctx, "Unknown FD %i has event", pollfd->fd);
+		continue;
+found_dev_for_fd:
 		if (pollfd->revents & POLLERR) {
 			usbi_remove_pollfd(HANDLE_CTX(handle), hpriv->fd);
 			usbi_handle_disconnect(handle);
