@@ -1845,9 +1845,11 @@ static int handle_events(struct libusb_context *ctx, struct timeval *tv)
 		if (fd == ctx->ctrl_pipe[0]){
 			control_pipe_index = i;
 		}
+#ifdef USBI_TIMERFD_AVAILABLE
 		if (fd == ctx->timerfd){
 			timerfd_pipe_index = i;
 		}
+#endif
 		fds[i].events = pollfd->events;
 		fds[i].revents = 0;
 	}
